@@ -6,7 +6,7 @@ compatibility_date = "2024-04-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "blink-db"
-database_id = "7e4f5149-89d0-453a-9dad-b6c5bdfd1a8f"
+database_id = "8559d8e6-0b54-4c9d-894e-735f92c2609a"
 
 # Durable Object Binding (Real-time Engine)
 [[durable_objects.bindings]]
