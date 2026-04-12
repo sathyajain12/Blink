@@ -15,9 +15,4 @@ class_name = "ChatRoom"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["ChatRoom"]
-
-# R2 Bucket Binding (File Storage)
-[[r2_buckets]]
-binding = "BUCKET"
-bucket_name = "blink-assets"
+new_sqlite_classes = ["ChatRoom"]
