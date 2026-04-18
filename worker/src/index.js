@@ -351,6 +351,15 @@ export class ChatRoom {
         if (data.type === 'join') {
           session.channelId = data.channelId;
         }
+        if (data.type === 'typing') {
+          this.broadcast({
+            type: 'typing',
+            userId: data.userId,
+            userName: data.userName,
+            channelId: data.channelId,
+          }, data.channelId, webSocket);
+        }
+
         if (data.type === 'message') {
           const messageId = crypto.randomUUID();
           const timestamp = new Date().toISOString();
@@ -381,10 +390,10 @@ export class ChatRoom {
     });
   }
 
-  broadcast(message, channelId) {
+  broadcast(message, channelId, exclude = null) {
     const data = JSON.stringify(message);
     this.sessions.forEach(session => {
-      if (session.channelId === channelId) {
+      if (session.channelId === channelId && session.webSocket !== exclude) {
         try {
           session.webSocket.send(data);
         } catch {

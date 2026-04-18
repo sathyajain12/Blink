@@ -31,8 +31,10 @@ const ChatArea = ({ channel, user }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [profileUser, setProfileUser] = useState(null);
+  const [typingUsers, setTypingUsers] = useState({});
   const wsRef = useRef(null);
   const scrollRef = useRef(null);
+  const typingTimeouts = useRef({});
 
   useEffect(() => {
     if (!channel) return;
@@ -61,7 +63,15 @@ const ChatArea = ({ channel, user }) => {
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'new_message') {
+          setTypingUsers(prev => { const n = { ...prev }; delete n[data.message.user_id]; return n; });
           setMessages(prev => [...prev, data.message]);
+        }
+        if (data.type === 'typing') {
+          setTypingUsers(prev => ({ ...prev, [data.userId]: data.userName }));
+          clearTimeout(typingTimeouts.current[data.userId]);
+          typingTimeouts.current[data.userId] = setTimeout(() => {
+            setTypingUsers(prev => { const n = { ...prev }; delete n[data.userId]; return n; });
+          }, 3000);
         }
       } catch {}
     };
@@ -196,6 +206,22 @@ const ChatArea = ({ channel, user }) => {
           ))}
         </div>
 
+        {Object.keys(typingUsers).length > 0 && (
+          <div style={{ padding: '0 1.5rem 0.25rem', fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>{Object.values(typingUsers).join(', ')} {Object.keys(typingUsers).length === 1 ? 'is' : 'are'} typing</span>
+            <span style={{ display: 'inline-flex', gap: '3px' }}>
+              {[0, 1, 2].map(i => (
+                <span key={i} style={{
+                  width: '5px', height: '5px', borderRadius: '50%',
+                  backgroundColor: 'var(--text-muted)',
+                  display: 'inline-block',
+                  animation: `typingBounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+                }} />
+              ))}
+            </span>
+          </div>
+        )}
+
         <div className="input-area">
           <div className="input-container" style={{ border: '1px solid var(--border)', padding: '1rem' }}>
             <div style={{ display: 'flex', gap: '1rem' }} className="text-muted">
@@ -210,7 +236,17 @@ const ChatArea = ({ channel, user }) => {
               className="message-input"
               placeholder={`Message #${channel.name}...`}
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => {
+              setInputText(e.target.value);
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                  type: 'typing',
+                  channelId: channel.id,
+                  userId: user.id,
+                  userName: user.full_name,
+                }));
+              }
+            }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
