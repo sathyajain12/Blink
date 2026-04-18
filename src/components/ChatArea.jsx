@@ -292,17 +292,19 @@ const ChatArea = ({ channel, user, onNewMessage }) => {
           setTypingUsers(prev => { const n = { ...prev }; delete n[data.message.user_id]; return n; });
           setMessages(prev => [...prev, data.message]);
           if (data.message.user_id !== user.id) {
-            if (document.hidden && Notification.permission === 'granted') {
+            if (Notification.permission === 'granted') {
               new Notification(`${data.message.full_name} in ${channel.type === 'DM' ? channel.other_user_name : '#' + channel.name}`, {
                 body: data.message.content?.slice(0, 80),
                 icon: '/favicon.ico',
               });
             }
-            onNewMessage?.(channel.id, {
-              senderName: data.message.full_name,
-              preview: (data.message.content || '').slice(0, 60),
-              channel,
-            });
+            if (!document.hidden) {
+              onNewMessage?.(channel.id, {
+                senderName: data.message.full_name,
+                preview: (data.message.content || '').slice(0, 60),
+                channel,
+              });
+            }
           }
         }
 
