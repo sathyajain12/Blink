@@ -38,11 +38,6 @@ const App = () => {
     if (savedUser) setUser(JSON.parse(savedUser));
   }, []);
 
-  useEffect(() => {
-    if (user) {
-      setTimeout(() => addToast({ id: 'test', name: 'blink', type: 'CHANNEL' }, null, 'Toast is working!'), 1000);
-    }
-  }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
