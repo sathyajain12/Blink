@@ -2,6 +2,7 @@ name = "blinkv2"
 main = "worker/src/index.js"
 compatibility_date = "2024-04-01"
 account_id = "1966c03f4aadbbe46523c450e7c71c51"
+pages_build_output_dir = "dist"
 
 # D1 Database Binding
 [[d1_databases]]
