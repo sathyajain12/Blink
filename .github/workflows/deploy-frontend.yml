@@ -23,4 +23,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: 1966c03f4aadbbe46523c450e7c71c51
+          wranglerVersion: "3"
           command: pages deploy dist --project-name=blink-frontend
