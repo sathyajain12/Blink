@@ -11,6 +11,8 @@ const Sidebar = ({ currentView, currentChannel, channels, dms = [], onSelectChan
   const [dmSearch, setDmSearch] = useState('');
   const [allUsers, setAllUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [dmError, setDmError] = useState('');
+  const [startingDM, setStartingDM] = useState(null);
   const [profileName, setProfileName] = useState(user.full_name);
   const [profileAvatar, setProfileAvatar] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
@@ -24,22 +26,40 @@ const Sidebar = ({ currentView, currentChannel, channels, dms = [], onSelectChan
   const openNewDM = async () => {
     setShowNewDM(true);
     setLoadingUsers(true);
+    setDmError('');
     const token = localStorage.getItem('blink_token');
-    const data = await fetch(`${API}/api/users`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).catch(() => []);
-    setAllUsers(Array.isArray(data) ? data : []);
+    try {
+      const res = await fetch(`${API}/api/users`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setAllUsers(Array.isArray(data) ? data : []);
+    } catch {
+      setDmError('Could not load users. Please try again.');
+    }
     setLoadingUsers(false);
   };
 
   const startDM = async (otherUser) => {
-    const token = localStorage.getItem('blink_token');
-    const res = await fetch(`${API}/api/dm`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ userId: otherUser.id }),
-    });
-    const dm = await res.json();
-    if (res.ok) { onCreateDM(dm); setShowNewDM(false); }
+    setStartingDM(otherUser.id);
+    setDmError('');
+    try {
+      const token = localStorage.getItem('blink_token');
+      const res = await fetch(`${API}/api/dm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ userId: otherUser.id }),
+      });
+      const dm = await res.json();
+      if (res.ok) {
+        onCreateDM(dm);
+        setShowNewDM(false);
+        setDmSearch('');
+      } else {
+        setDmError(dm.error || 'Failed to open conversation');
+      }
+    } catch {
+      setDmError('Could not connect to server');
+    }
+    setStartingDM(null);
   };
 
   const saveProfile = async () => {
@@ -189,7 +209,7 @@ const Sidebar = ({ currentView, currentChannel, channels, dms = [], onSelectChan
           <div className="fade-in" style={{ width: '100%', maxWidth: '400px', backgroundColor: 'var(--bg-chat)', borderRadius: '20px', padding: '1.5rem', boxShadow: 'var(--shadow-md)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ fontWeight: 700 }}>New Direct Message</h3>
-              <button onClick={() => { setShowNewDM(false); setDmSearch(''); }} className="text-muted"><X size={18} /></button>
+              <button onClick={() => { setShowNewDM(false); setDmSearch(''); setDmError(''); }} className="text-muted"><X size={18} /></button>
             </div>
             <input
               type="text" placeholder="Search people…"
@@ -197,10 +217,17 @@ const Sidebar = ({ currentView, currentChannel, channels, dms = [], onSelectChan
               style={{ width: '100%', border: '1px solid var(--border)', borderRadius: '10px', padding: '0.625rem 0.875rem', fontSize: '0.875rem', marginBottom: '0.75rem', backgroundColor: 'var(--bg-main)', color: 'var(--text-main)' }}
               autoFocus
             />
+            {dmError && (
+              <p style={{ fontSize: '0.8125rem', color: '#ef4444', marginBottom: '0.5rem', padding: '0.5rem 0.75rem', backgroundColor: '#fee2e2', borderRadius: '8px' }}>
+                {dmError}
+              </p>
+            )}
             <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
               {loadingUsers && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem' }}>Loading…</p>}
               {filteredUsers.map(u => (
-                <button key={u.id} onClick={() => startDM(u)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.625rem 0.5rem', borderRadius: '8px', background: 'none', textAlign: 'left' }}
+                <button key={u.id} onClick={() => startDM(u)}
+                  disabled={startingDM === u.id}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.625rem 0.5rem', borderRadius: '8px', background: 'none', textAlign: 'left', opacity: startingDM && startingDM !== u.id ? 0.5 : 1 }}
                   onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-main)'}
                   onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
@@ -211,14 +238,17 @@ const Sidebar = ({ currentView, currentChannel, channels, dms = [], onSelectChan
                       <User size={16} style={{ color: 'var(--primary)' }} />
                     </div>
                   )}
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-main)' }}>{u.full_name}</div>
                     <div style={{ fontSize: '0.75rem', color: u.status === 'ONLINE' ? '#10b981' : 'var(--text-muted)' }}>{u.status || 'Offline'}</div>
                   </div>
+                  {startingDM === u.id && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Opening…</span>}
                 </button>
               ))}
-              {!loadingUsers && filteredUsers.length === 0 && (
-                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem', fontSize: '0.875rem' }}>No users found</p>
+              {!loadingUsers && filteredUsers.length === 0 && !dmError && (
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem', fontSize: '0.875rem' }}>
+                  {allUsers.length === 0 ? 'No other users in the workspace yet' : 'No users match your search'}
+                </p>
               )}
             </div>
           </div>
