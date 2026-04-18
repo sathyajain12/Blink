@@ -17,11 +17,16 @@ const EMOJI_REGEX = /(\p{Emoji_Presentation}|\p{Extended_Pictographic})/gu;
 
 // ── Markdown + emoji renderer ─────────────────────────────────────────────
 
+const URL_REGEX = /https?:\/\/[^\s<>"')\]]+/g;
+
+function extractUrls(text) {
+  return text ? [...text.matchAll(URL_REGEX)].map(m => m[0]) : [];
+}
+
 function parseMarkdown(text) {
   if (!text) return '';
   let s = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  // Protect code blocks
   const blocks = [];
   s = s.replace(/```([\s\S]*?)```/g, (_, code) => {
     const i = blocks.length;
@@ -29,7 +34,6 @@ function parseMarkdown(text) {
     return `\x00B${i}\x00`;
   });
 
-  // Protect inline code
   const codes = [];
   s = s.replace(/`([^`\n]+)`/g, (_, c) => {
     const i = codes.length;
@@ -41,6 +45,7 @@ function parseMarkdown(text) {
   s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
   s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
   s = s.replace(/\[(.+?)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
+  s = s.replace(/@(\w+)/g, '<span style="color:var(--primary);font-weight:600">@$1</span>');
   s = s.replace(EMOJI_REGEX, '<span class="emoji-animated">$&</span>');
   s = s.replace(/\n/g, '<br>');
 
@@ -74,7 +79,7 @@ function groupReactions(reactions = []) {
 
 // ── MessageItem ───────────────────────────────────────────────────────────
 
-const MessageItem = memo(({ msg, currentUser, isAdmin, onReply, onToggleReaction, onEdit, onDelete, onPin, onUnpin, isPinned, onAvatarClick }) => {
+const MessageItem = memo(({ msg, currentUser, isAdmin, onReply, onToggleReaction, onEdit, onDelete, onPin, onUnpin, isPinned, onAvatarClick, onJump, isJumping, linkPreviews, onFetchPreview, isSeenTarget }) => {
   const [hovered, setHovered] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(msg.content);
@@ -113,10 +118,13 @@ const MessageItem = memo(({ msg, currentUser, isAdmin, onReply, onToggleReaction
     );
   }
 
+  const urls = extractUrls(msg.content || '');
+
   return (
     <div
       className="message"
-      style={{ position: 'relative' }}
+      data-message-id={msg.id}
+      style={{ position: 'relative', transition: 'background-color 0.5s', backgroundColor: isJumping ? 'rgba(99,102,241,0.15)' : undefined }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setShowReactionPicker(false); }}
     >
@@ -167,7 +175,7 @@ const MessageItem = memo(({ msg, currentUser, isAdmin, onReply, onToggleReaction
         </div>
 
         {msg.reply_to_id && (
-          <div className="reply-context">
+          <div className="reply-context" style={{ cursor: 'pointer' }} onClick={() => onJump?.(msg.reply_to_id)}>
             <div style={{ width: 3, backgroundColor: 'var(--primary)', borderRadius: 2, flexShrink: 0 }} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--primary)', marginBottom: 1 }}>{msg.reply_user_name}</div>
@@ -226,6 +234,33 @@ const MessageItem = memo(({ msg, currentUser, isAdmin, onReply, onToggleReaction
             ))}
           </div>
         )}
+
+        {/* Link previews */}
+        {urls.map(url => {
+          const preview = linkPreviews?.[url];
+          if (!preview) {
+            if (onFetchPreview && linkPreviews && !(url in linkPreviews)) onFetchPreview(url);
+            return null;
+          }
+          if (!preview.title) return null;
+          return (
+            <a key={url} href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block', marginTop: '0.5rem', maxWidth: '440px', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'var(--bg-main)' }}>
+              {preview.image && <img src={preview.image} alt="" style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', display: 'block' }} onError={e => { e.target.style.display = 'none'; }} />}
+              <div style={{ padding: '0.625rem 0.75rem' }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '2px' }}>{preview.siteName}</div>
+                <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '2px' }}>{preview.title}</div>
+                {preview.description && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{preview.description}</div>}
+              </div>
+            </a>
+          );
+        })}
+
+        {/* Read receipt */}
+        {isSeenTarget && (
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Check size={11} /><Check size={11} style={{ marginLeft: -6 }} /> Seen
+          </div>
+        )}
       </div>
     </div>
   );
@@ -253,12 +288,99 @@ const ChatArea = ({ channel, user, onNewMessage }) => {
   const [notifPermission, setNotifPermission] = useState(() =>
     'Notification' in window ? Notification.permission : 'unsupported'
   );
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionUsers, setMentionUsers] = useState([]);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [linkPreviews, setLinkPreviews] = useState({});
+  const [jumpingTo, setJumpingTo] = useState(null);
+  const [readReceipts, setReadReceipts] = useState([]);
+  const inputRef = useRef(null);
 
   const requestNotifPermission = async () => {
     if (!('Notification' in window) || notifPermission === 'denied') return;
     const result = await Notification.requestPermission();
     setNotifPermission(result);
   };
+
+  // Load users for @mention autocomplete
+  useEffect(() => {
+    const token = localStorage.getItem('blink_token');
+    fetch(`${API}/api/users`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setMentionUsers(d); }).catch(() => {});
+  }, []);
+
+  // Read receipts for DMs
+  useEffect(() => {
+    if (channel.type !== 'DM') return;
+    const token = localStorage.getItem('blink_token');
+    fetch(`${API}/api/read-receipt/${channel.id}`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    const fetchReceipts = () => fetch(`${API}/api/read-receipt/${channel.id}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => { if (Array.isArray(d)) setReadReceipts(d); }).catch(() => {});
+    fetchReceipts();
+    const interval = setInterval(fetchReceipts, 5000);
+    return () => clearInterval(interval);
+  }, [channel.id]);
+
+  const filteredMentions = mentionQuery !== null
+    ? mentionUsers.filter(u => (u.full_name || '').toLowerCase().includes(mentionQuery)).slice(0, 6)
+    : [];
+
+  const insertMention = (u) => {
+    const firstName = u.full_name.split(' ')[0];
+    const pos = inputRef.current?.selectionStart || inputText.length;
+    const before = inputText.slice(0, pos).replace(/@\w*$/, `@${firstName} `);
+    setInputText(before + inputText.slice(pos));
+    setMentionQuery(null);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const jumpToMessage = useCallback((messageId) => {
+    const el = document.querySelector(`[data-message-id="${messageId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setJumpingTo(messageId);
+      setTimeout(() => setJumpingTo(null), 2000);
+    }
+  }, []);
+
+  const fetchLinkPreview = useCallback((url) => {
+    setLinkPreviews(prev => {
+      if (url in prev) return prev;
+      const token = localStorage.getItem('blink_token');
+      fetch(`${API}/api/link-preview?url=${encodeURIComponent(url)}`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json()).then(d => {
+          if (!d.error) setLinkPreviews(p => ({ ...p, [url]: d }));
+          else setLinkPreviews(p => ({ ...p, [url]: null }));
+        }).catch(() => setLinkPreviews(p => ({ ...p, [url]: null })));
+      return { ...prev, [url]: null };
+    });
+  }, []);
+
+  const runSearch = useCallback(async (q) => {
+    if (!q.trim()) { setSearchResults([]); return; }
+    setSearchLoading(true);
+    const token = localStorage.getItem('blink_token');
+    try {
+      const res = await fetch(`${API}/api/search?q=${encodeURIComponent(q)}&channelId=${channel.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      const d = await res.json();
+      setSearchResults(Array.isArray(d) ? d : []);
+    } catch {}
+    setSearchLoading(false);
+  }, [channel.id]);
+
+  // Compute "seen" target: last own message the other user has read (DM only)
+  const seenMessageId = useMemo(() => {
+    if (channel.type !== 'DM') return null;
+    const other = readReceipts.find(r => r.user_id !== user.id);
+    if (!other) return null;
+    const readAt = new Date(other.last_read_at);
+    const ownMsgs = messages.filter(m => m.user_id === user.id && new Date(m.timestamp) <= readAt);
+    return ownMsgs.length ? ownMsgs[ownMsgs.length - 1].id : null;
+  }, [readReceipts, messages, user.id, channel.type]);
 
   // Load messages + pinned + connect WS on channel change
   useEffect(() => {
@@ -444,7 +566,9 @@ const ChatArea = ({ channel, user, onNewMessage }) => {
             >
               {notifPermission === 'granted' ? <Bell size={18} /> : <BellOff size={18} />}
             </button>
-            <Search size={18} className="text-muted" />
+            <button onClick={() => { setShowSearch(p => !p); setSearchQuery(''); setSearchResults([]); }} className="text-muted" style={{ color: showSearch ? 'var(--primary)' : undefined }}>
+              <Search size={18} />
+            </button>
             <button onClick={() => { setShowProfile(p => !p); setShowFiles(false); }} className="text-muted" style={{ display: 'flex', color: showProfile ? 'var(--primary)' : undefined }}>
               <Users size={18} />
             </button>
@@ -481,6 +605,37 @@ const ChatArea = ({ channel, user, onNewMessage }) => {
           </div>
         )}
 
+        {/* Search panel */}
+        {showSearch && (
+          <div style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-main)', padding: '0.75rem 1.5rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <input
+                type="text" placeholder="Search messages…" autoFocus
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); runSearch(e.target.value); }}
+                style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '8px', padding: '0.5rem 0.75rem', fontSize: '0.875rem', backgroundColor: 'var(--bg-chat)', color: 'var(--text-main)' }}
+              />
+              <button onClick={() => setShowSearch(false)} className="text-muted"><X size={16} /></button>
+            </div>
+            <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+              {searchLoading && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '0.5rem 0' }}>Searching…</p>}
+              {!searchLoading && searchQuery && searchResults.length === 0 && (
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '0.5rem 0' }}>No results found.</p>
+              )}
+              {searchResults.map(r => (
+                <button key={r.id} onClick={() => { jumpToMessage(r.id); setShowSearch(false); }}
+                  style={{ width: '100%', textAlign: 'left', padding: '0.5rem', borderRadius: '8px', background: 'none', display: 'block' }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-chat)'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 600, marginBottom: '2px' }}>{r.full_name}</div>
+                  <div style={{ fontSize: '0.8125rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.content}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{formatTime(r.timestamp)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Messages */}
         <div className="chat-area" ref={scrollRef}>
           {messages.length === 0 && (
@@ -504,6 +659,11 @@ const ChatArea = ({ channel, user, onNewMessage }) => {
               onUnpin={handleUnpin}
               isPinned={pinnedIds.has(msg.id)}
               onAvatarClick={(u) => { setProfileUser(u); setShowProfile(true); }}
+              onJump={jumpToMessage}
+              isJumping={jumpingTo === msg.id}
+              linkPreviews={linkPreviews}
+              onFetchPreview={fetchLinkPreview}
+              isSeenTarget={seenMessageId === msg.id}
             />
           ))}
         </div>
@@ -546,17 +706,45 @@ const ChatArea = ({ channel, user, onNewMessage }) => {
                 )}
               </div>
             </div>
+            {filteredMentions.length > 0 && (
+              <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, backgroundColor: 'var(--bg-chat)', border: '1px solid var(--border)', borderRadius: '10px', boxShadow: 'var(--shadow-md)', zIndex: 200, overflow: 'hidden', marginBottom: '4px' }}>
+                {filteredMentions.map((u, i) => (
+                  <button key={u.id} onClick={() => insertMention(u)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.625rem', padding: '0.5rem 0.75rem', background: i === mentionIndex ? 'var(--primary-light)' : 'none', textAlign: 'left' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', flexShrink: 0 }}>
+                      {(u.full_name || '?')[0]}
+                    </div>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-main)' }}>{u.full_name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <textarea
+              ref={inputRef}
               className="message-input"
               placeholder={channel.type === 'DM' ? `Message ${channel.other_user_name}…` : `Message #${channel.name}…`}
               value={inputText}
               onChange={e => {
-                setInputText(e.target.value);
+                const val = e.target.value;
+                setInputText(val);
+                const pos = e.target.selectionStart;
+                const before = val.slice(0, pos);
+                const match = before.match(/@(\w*)$/);
+                setMentionQuery(match ? match[1].toLowerCase() : null);
+                setMentionIndex(0);
                 if (wsRef.current?.readyState === WebSocket.OPEN) {
                   wsRef.current.send(JSON.stringify({ type: 'typing', channelId: channel.id, userId: user.id, userName: user.full_name }));
                 }
               }}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+              onKeyDown={e => {
+                if (filteredMentions.length > 0) {
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => (i + 1) % filteredMentions.length); return; }
+                  if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIndex(i => (i - 1 + filteredMentions.length) % filteredMentions.length); return; }
+                  if (e.key === 'Enter') { e.preventDefault(); insertMention(filteredMentions[mentionIndex]); return; }
+                  if (e.key === 'Escape') { setMentionQuery(null); return; }
+                }
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+              }}
               style={{ color: 'var(--text-main)' }}
             />
             <button className="send-btn" onClick={handleSend} disabled={!inputText.trim()}><Send size={18} /></button>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Hash, MessageSquare, Settings, Search, Plus, LogOut, Sun, Moon, MessageCircle, X, Check, User } from 'lucide-react';
+import { Hash, MessageSquare, Settings, Search, Plus, LogOut, Sun, Moon, MessageCircle, X, Check, User, Link2 } from 'lucide-react';
 import CreateChannelModal from './CreateChannelModal';
 
 const API = 'https://blinkv2.saisathyajain.workers.dev';
@@ -17,6 +17,19 @@ const Sidebar = ({ currentView, currentChannel, channels, dms = [], onSelectChan
   const [profileName, setProfileName] = useState(user.full_name);
   const [profileAvatar, setProfileAvatar] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+
+  const copyInviteLink = async () => {
+    const token = localStorage.getItem('blink_token');
+    try {
+      const res = await fetch(`${API}/api/invite`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      const { code } = await res.json();
+      const link = `${window.location.origin}?invite=${code}`;
+      await navigator.clipboard.writeText(link);
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 2500);
+    } catch {}
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('blink_user');
@@ -189,6 +202,9 @@ const Sidebar = ({ currentView, currentChannel, channels, dms = [], onSelectChan
             <div style={{ fontSize: '0.875rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.full_name}</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Online</div>
           </div>
+          <button onClick={copyInviteLink} className="text-muted" title="Copy invite link" style={{ flexShrink: 0, color: inviteCopied ? '#10b981' : undefined }}>
+            {inviteCopied ? <Check size={16} /> : <Link2 size={16} />}
+          </button>
           <button onClick={onToggleTheme} className="text-muted" title="Toggle theme" style={{ flexShrink: 0 }}>
             {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
           </button>

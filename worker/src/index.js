@@ -39,6 +39,18 @@ async function runMigrations(env) {
       pinned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(channel_id, message_id)
     )`,
+    `CREATE TABLE IF NOT EXISTS invite_links (
+      code TEXT PRIMARY KEY,
+      created_by TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS dm_read_receipts (
+      channel_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      last_read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (channel_id, user_id)
+    )`,
   ];
   for (const t of tables) { try { await env.DB.prepare(t).run(); } catch {} }
 
@@ -141,6 +153,13 @@ export default {
       return handleDeleteUser(pathname.split('/').pop(), env, request);
     if (pathname.startsWith('/api/admin/users')) return handleAdminUsers(request, env);
     if (pathname.startsWith('/api/admin')) return handleAdmin(request, env);
+
+    if (pathname === '/api/link-preview' && request.method === 'GET') return handleLinkPreview(request, env);
+    if (pathname === '/api/search' && request.method === 'GET') return handleSearch(request, env);
+    if (pathname === '/api/invite' && request.method === 'POST') return handleCreateInvite(request, env);
+    if (pathname.startsWith('/api/invite/') && request.method === 'GET') return handleJoinInvite(request, env);
+    if (pathname.startsWith('/api/read-receipt/') && request.method === 'PUT') return handleUpdateReadReceipt(request, env);
+    if (pathname.startsWith('/api/read-receipt/') && request.method === 'GET') return handleGetReadReceipt(request, env);
 
     return new Response('Blink API', { status: 200 });
   }
@@ -455,6 +474,104 @@ async function handleAdminUsers(request, env) {
   const { results } = await env.DB.prepare(
     'SELECT id, email, full_name, role, status, last_active, created_at FROM users ORDER BY created_at DESC'
   ).all();
+  return corsResponse(JSON.stringify(results));
+}
+
+// ── Link Preview ─────────────────────────────────────────────────────────
+
+async function handleLinkPreview(request, env) {
+  const rawUrl = new URL(request.url).searchParams.get('url') || '';
+  if (!rawUrl) return corsResponse(JSON.stringify({ error: 'URL required' }), 400);
+  try {
+    const res = await fetch(rawUrl, { headers: { 'User-Agent': 'BlinkBot/1.0 (link preview)' } });
+    const html = await res.text();
+    const get = (prop) => {
+      const m = html.match(new RegExp(`<meta[^>]+property=["']${prop}["'][^>]+content=["']([^"']+)["']`, 'i'))
+        || html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${prop}["']`, 'i'));
+      return m?.[1]?.trim() || '';
+    };
+    const title = get('og:title') || (html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || '').trim();
+    const description = get('og:description');
+    const image = get('og:image');
+    const siteName = get('og:site_name') || new URL(rawUrl).hostname;
+    return corsResponse(JSON.stringify({ title, description, image, siteName, url: rawUrl }));
+  } catch {
+    return corsResponse(JSON.stringify({ error: 'Failed to fetch preview' }), 500);
+  }
+}
+
+// ── Search ────────────────────────────────────────────────────────────────
+
+async function handleSearch(request, env) {
+  const auth = getAuth(request);
+  if (!auth) return corsResponse(JSON.stringify({ error: 'Unauthorized' }), 401);
+  const { searchParams } = new URL(request.url);
+  const q = (searchParams.get('q') || '').trim();
+  const channelId = searchParams.get('channelId');
+  if (!q) return corsResponse(JSON.stringify([]));
+  if (channelId) {
+    const { results } = await env.DB.prepare(`
+      SELECT m.id, m.channel_id, m.content, m.timestamp, u.full_name, u.avatar_url
+      FROM messages m JOIN users u ON m.user_id = u.id
+      WHERE m.channel_id = ? AND m.content LIKE ? AND m.is_deleted = 0
+      ORDER BY m.timestamp DESC LIMIT 50
+    `).bind(channelId, `%${q}%`).all();
+    return corsResponse(JSON.stringify(results));
+  }
+  const { results } = await env.DB.prepare(`
+    SELECT m.id, m.channel_id, m.content, m.timestamp, u.full_name, u.avatar_url,
+           c.name as channel_name, c.type as channel_type
+    FROM messages m
+    JOIN users u ON m.user_id = u.id
+    JOIN channels c ON m.channel_id = c.id
+    JOIN channel_members cm ON cm.channel_id = m.channel_id AND cm.user_id = ?
+    WHERE m.content LIKE ? AND m.is_deleted = 0
+    ORDER BY m.timestamp DESC LIMIT 50
+  `).bind(auth.id, `%${q}%`).all();
+  return corsResponse(JSON.stringify(results));
+}
+
+// ── Invite Links ──────────────────────────────────────────────────────────
+
+async function handleCreateInvite(request, env) {
+  const user = getAuth(request);
+  if (!user) return corsResponse(JSON.stringify({ error: 'Unauthorized' }), 401);
+  const code = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  await env.DB.prepare('INSERT INTO invite_links (code, created_by, expires_at) VALUES (?, ?, ?)')
+    .bind(code, user.id, expiresAt).run();
+  return corsResponse(JSON.stringify({ code, expiresAt }));
+}
+
+async function handleJoinInvite(request, env) {
+  const user = getAuth(request);
+  if (!user) return corsResponse(JSON.stringify({ error: 'Unauthorized' }), 401);
+  const code = new URL(request.url).pathname.split('/').pop();
+  const invite = await env.DB.prepare('SELECT code, expires_at FROM invite_links WHERE code = ?').bind(code).first();
+  if (!invite) return corsResponse(JSON.stringify({ error: 'Invalid invite link' }), 404);
+  if (new Date(invite.expires_at) < new Date()) return corsResponse(JSON.stringify({ error: 'Invite link expired' }), 410);
+  await env.DB.prepare("INSERT OR IGNORE INTO channel_members (channel_id, user_id, role) SELECT id, ?, 'MEMBER' FROM channels WHERE type != 'DM'").bind(user.id).run();
+  return corsResponse(JSON.stringify({ success: true }));
+}
+
+// ── Read Receipts ─────────────────────────────────────────────────────────
+
+async function handleUpdateReadReceipt(request, env) {
+  const user = getAuth(request);
+  if (!user) return corsResponse(JSON.stringify({ error: 'Unauthorized' }), 401);
+  const channelId = new URL(request.url).pathname.split('/').pop();
+  await env.DB.prepare('INSERT OR REPLACE INTO dm_read_receipts (channel_id, user_id, last_read_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
+    .bind(channelId, user.id).run();
+  return corsResponse(JSON.stringify({ success: true }));
+}
+
+async function handleGetReadReceipt(request, env) {
+  const user = getAuth(request);
+  if (!user) return corsResponse(JSON.stringify({ error: 'Unauthorized' }), 401);
+  const channelId = new URL(request.url).pathname.split('/').pop();
+  const { results } = await env.DB.prepare(
+    'SELECT user_id, last_read_at FROM dm_read_receipts WHERE channel_id = ?'
+  ).bind(channelId).all();
   return corsResponse(JSON.stringify(results));
 }
 
