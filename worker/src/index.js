@@ -82,6 +82,10 @@ export default {
       return handleLogin(request, env);
     }
 
+    if (url.pathname === '/api/auth/google' && request.method === 'POST') {
+      return handleGoogleAuth(request, env);
+    }
+
     if (url.pathname === '/api/channels' && request.method === 'GET') {
       return handleChannels(request, env);
     }
@@ -176,6 +180,66 @@ async function handleLogin(request, env) {
   await env.DB.prepare(
     "INSERT INTO activity_logs (user_id, action, details) VALUES (?, 'USER_LOGIN', ?)"
   ).bind(user.id, `${user.full_name} signed in`).run();
+
+  const token = await signJWT(
+    { id: user.id, email: user.email, full_name: user.full_name, role: user.role },
+    env.JWT_SECRET
+  );
+  return corsResponse(JSON.stringify({
+    token,
+    user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role }
+  }));
+}
+
+// ── Google OAuth handler ──────────────────────────────────────────────────
+
+async function handleGoogleAuth(request, env) {
+  let body;
+  try { body = await request.json(); } catch {
+    return corsResponse(JSON.stringify({ error: 'Invalid JSON' }), 400);
+  }
+
+  const { credential } = body;
+  if (!credential) {
+    return corsResponse(JSON.stringify({ error: 'Missing credential' }), 400);
+  }
+
+  const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+  const payload = await res.json();
+
+  if (!res.ok || payload.error) {
+    return corsResponse(JSON.stringify({ error: 'Invalid Google token' }), 401);
+  }
+
+  if (payload.aud !== env.GOOGLE_CLIENT_ID) {
+    return corsResponse(JSON.stringify({ error: 'Token audience mismatch' }), 401);
+  }
+
+  const { email, name } = payload;
+
+  let user = await env.DB.prepare(
+    'SELECT id, email, full_name, role FROM users WHERE email = ?'
+  ).bind(email).first();
+
+  if (!user) {
+    const id = crypto.randomUUID();
+    await env.DB.prepare(
+      'INSERT INTO users (id, email, password_hash, full_name) VALUES (?, ?, ?, ?)'
+    ).bind(id, email, '', name).run();
+
+    await env.DB.prepare(
+      'INSERT OR IGNORE INTO channel_members (channel_id, user_id, role) SELECT id, ?, ? FROM channels'
+    ).bind(id, 'MEMBER').run();
+
+    await env.DB.prepare(
+      "INSERT INTO activity_logs (user_id, action, details) VALUES (?, 'USER_JOINED', ?)"
+    ).bind(id, `${name} joined via Google`).run();
+
+    user = { id, email, full_name: name, role: 'MEMBER' };
+  }
+
+  await env.DB.prepare('UPDATE users SET status = ?, last_active = CURRENT_TIMESTAMP WHERE id = ?')
+    .bind('ONLINE', user.id).run();
 
   const token = await signJWT(
     { id: user.id, email: user.email, full_name: user.full_name, role: user.role },

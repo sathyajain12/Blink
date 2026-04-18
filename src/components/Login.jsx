@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, Mail, Lock, Eye, EyeOff, User } from 'lucide-react';
 
 const API = 'https://blinkv2.saisathyajain.workers.dev';
+const GOOGLE_CLIENT_ID = '76300083266-c4hr0fcnfi4jo6k69v8vtdnfsmaalguj.apps.googleusercontent.com';
 
 const Login = ({ onLogin }) => {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
@@ -11,6 +12,45 @@ const Login = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.onload = () => {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+      });
+      window.google.accounts.id.renderButton(
+        document.getElementById('google-signin-btn'),
+        { theme: 'outline', size: 'large', width: 360, text: 'continue_with' }
+      );
+    };
+    document.body.appendChild(script);
+    return () => document.body.removeChild(script);
+  }, []);
+
+  const handleGoogleCredential = async ({ credential }) => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${API}/api/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'Google sign-in failed'); return; }
+      localStorage.setItem('blink_token', data.token);
+      localStorage.setItem('blink_user', JSON.stringify(data.user));
+      onLogin(data.user);
+    } catch {
+      setError('Could not connect to server. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -109,6 +149,14 @@ const Login = ({ onLogin }) => {
             {error}
           </div>
         )}
+
+        {/* Google Sign In */}
+        <div id="google-signin-btn" style={{ marginBottom: '1rem' }}></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)' }} />
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500 }}>or continue with email</span>
+          <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border)' }} />
+        </div>
 
         <form onSubmit={handleSubmit}>
           {mode === 'register' && (
