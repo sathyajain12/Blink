@@ -116,16 +116,15 @@ const App = () => {
     if (!isActive) {
       setUnreadCounts(prev => ({ ...prev, [channelId]: (prev[channelId] || 0) + 1 }));
     }
-    // Show toast for every incoming message from another user
-    if (meta) {
-      const ch = allChannelsRef.current.find(c => c.id === channelId);
-      if (ch) addToast(ch, meta.senderName, meta.preview);
+    if (meta?.channel) {
+      addToast(meta.channel, meta.senderName, meta.preview);
     }
   }, [currentChannel?.id, addToast]);
 
   const handleLogin = (u) => {
     setUser(u);
     lastReadRef.current = {};
+    setTimeout(() => addToast({ id: 'welcome', name: 'blink', type: 'CHANNEL' }, null, 'Welcome back! Toasts are working.'), 800);
   };
 
   if (!user) return <Login onLogin={handleLogin} />;

@@ -299,6 +299,7 @@ const ChatArea = ({ channel, user, onNewMessage }) => {
             onNewMessage?.(channel.id, {
               senderName: data.message.full_name,
               preview: (data.message.content || '').slice(0, 60),
+              channel,
             });
           }
         }
