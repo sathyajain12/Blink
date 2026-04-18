@@ -46,16 +46,18 @@ const Sidebar = ({ currentView, currentChannel, channels, onSelectChannel, onVie
         ))}
       </nav>
 
-      <nav className="nav-section" style={{ marginTop: 'auto' }}>
-        <a
-          href="#"
-          className={`nav-item ${currentView === 'admin' ? 'active' : ''}`}
-          onClick={(e) => { e.preventDefault(); onViewChange('admin'); }}
-        >
-          <Settings size={18} />
-          Admin Panel
-        </a>
-      </nav>
+      {(user.role === 'OWNER' || user.role === 'ADMIN') && (
+        <nav className="nav-section" style={{ marginTop: 'auto' }}>
+          <a
+            href="#"
+            className={`nav-item ${currentView === 'admin' ? 'active' : ''}`}
+            onClick={(e) => { e.preventDefault(); onViewChange('admin'); }}
+          >
+            <Settings size={18} />
+            Admin Panel
+          </a>
+        </nav>
+      )}
 
       <div className="user-profile" style={{
         display: 'flex',

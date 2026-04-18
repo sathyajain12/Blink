@@ -55,7 +55,7 @@ const App = () => {
       <main className="main-content">
         {currentView === 'chat' && currentChannel ? (
           <ChatArea channel={currentChannel} user={user} />
-        ) : currentView === 'admin' ? (
+        ) : currentView === 'admin' && (user.role === 'OWNER' || user.role === 'ADMIN') ? (
           <AdminPanel />
         ) : null}
       </main>

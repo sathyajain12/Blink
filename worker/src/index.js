@@ -100,7 +100,7 @@ export default {
 
     if (url.pathname.startsWith('/api/admin/users/') && request.method === 'DELETE') {
       const userId = url.pathname.split('/').pop();
-      return handleDeleteUser(userId, env);
+      return handleDeleteUser(userId, env, request);
     }
 
     if (url.pathname.startsWith('/api/admin/users')) {
@@ -138,10 +138,12 @@ async function handleRegister(request, env) {
 
   const id = crypto.randomUUID();
   const password_hash = await hashPassword(password);
+  const userCount = await env.DB.prepare('SELECT COUNT(*) as count FROM users').first('count');
+  const role = userCount === 0 ? 'OWNER' : 'MEMBER';
 
   await env.DB.prepare(
-    'INSERT INTO users (id, email, password_hash, full_name) VALUES (?, ?, ?, ?)'
-  ).bind(id, email, password_hash, full_name).run();
+    'INSERT INTO users (id, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)'
+  ).bind(id, email, password_hash, full_name, role).run();
 
   await env.DB.prepare(
     'INSERT OR IGNORE INTO channel_members (channel_id, user_id, role) SELECT id, ?, ? FROM channels'
@@ -151,8 +153,8 @@ async function handleRegister(request, env) {
     "INSERT INTO activity_logs (user_id, action, details) VALUES (?, 'USER_JOINED', ?)"
   ).bind(id, `${full_name} joined the workspace`).run();
 
-  const token = await signJWT({ id, email, full_name, role: 'MEMBER' }, env.JWT_SECRET);
-  return corsResponse(JSON.stringify({ token, user: { id, email, full_name, role: 'MEMBER' } }), 201);
+  const token = await signJWT({ id, email, full_name, role }, env.JWT_SECRET);
+  return corsResponse(JSON.stringify({ token, user: { id, email, full_name, role } }), 201);
 }
 
 async function handleLogin(request, env) {
@@ -194,6 +196,27 @@ async function handleLogin(request, env) {
     token,
     user: { id: user.id, email: user.email, full_name: user.full_name, role: user.role }
   }));
+}
+
+// ── JWT verification ──────────────────────────────────────────────────────
+
+function decodeJWT(token) {
+  try {
+    const [, payload] = token.split('.');
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
+  }
+}
+
+function requireAdmin(request) {
+  const auth = request.headers.get('Authorization') || '';
+  const token = auth.replace('Bearer ', '');
+  const payload = decodeJWT(token);
+  if (!payload || (payload.role !== 'OWNER' && payload.role !== 'ADMIN')) {
+    return corsResponse(JSON.stringify({ error: 'Forbidden' }), 403);
+  }
+  return null;
 }
 
 // ── Google OAuth handler ──────────────────────────────────────────────────
@@ -292,7 +315,9 @@ async function handleMessages(request, env) {
 
 // ── Admin handlers ────────────────────────────────────────────────────────
 
-async function handleAdmin(_request, env) {
+async function handleAdmin(request, env) {
+  const deny = requireAdmin(request);
+  if (deny) return deny;
   const totalUsers = await env.DB.prepare('SELECT COUNT(*) as count FROM users').first('count');
   const totalMessages = await env.DB.prepare('SELECT COUNT(*) as count FROM messages').first('count');
   const activeToday = await env.DB.prepare(
@@ -309,7 +334,9 @@ async function handleAdmin(_request, env) {
   }));
 }
 
-async function handleDeleteUser(userId, env) {
+async function handleDeleteUser(userId, env, request) {
+  const deny = requireAdmin(request);
+  if (deny) return deny;
   await env.DB.prepare('DELETE FROM activity_logs WHERE user_id = ?').bind(userId).run();
   await env.DB.prepare('DELETE FROM files WHERE uploader_id = ?').bind(userId).run();
   await env.DB.prepare('DELETE FROM messages WHERE user_id = ?').bind(userId).run();
@@ -318,7 +345,9 @@ async function handleDeleteUser(userId, env) {
   return corsResponse(JSON.stringify({ success: true }));
 }
 
-async function handleAdminUsers(_request, env) {
+async function handleAdminUsers(request, env) {
+  const deny = requireAdmin(request);
+  if (deny) return deny;
   const { results } = await env.DB.prepare(
     'SELECT id, email, full_name, role, status, last_active, created_at FROM users ORDER BY created_at DESC'
   ).all();
