@@ -1,12 +1,13 @@
-name = "blink"
+name = "blinkv2"
 main = "worker/src/index.js"
 compatibility_date = "2024-04-01"
+account_id = "1966c03f4aadbbe46523c450e7c71c51"
 
 # D1 Database Binding
 [[d1_databases]]
 binding = "DB"
 database_name = "blink-db"
-database_id = "8559d8e6-0b54-4c9d-894e-735f92c2609a"
+database_id = "2b7d896a-8429-47cf-8579-550ed2b62e5d"
 
 # Durable Object Binding (Real-time Engine)
 [[durable_objects.bindings]]
