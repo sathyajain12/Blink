@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
+import ToastContainer from './components/Toast';
 
 const API = 'https://blinkv2.saisathyajain.workers.dev';
 
@@ -14,7 +15,18 @@ const App = () => {
   const [dms, setDms] = useState([]);
   const [unreadCounts, setUnreadCounts] = useState({});
   const [theme, setTheme] = useState(() => localStorage.getItem('blink_theme') || 'light');
+  const [toasts, setToasts] = useState([]);
   const lastReadRef = useRef({});
+  const allChannelsRef = useRef([]);
+
+  const dismissToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const addToast = useCallback((channel, senderName, preview) => {
+    const id = crypto.randomUUID();
+    setToasts(prev => [...prev.slice(-4), { id, channel, senderName, preview }]);
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -39,6 +51,7 @@ const App = () => {
       const dmArr = Array.isArray(dm) ? dm : [];
       setChannels(chArr);
       setDms(dmArr);
+      allChannelsRef.current = [...chArr, ...dmArr];
       if (chArr.length > 0 && !currentChannel) setCurrentChannel(chArr[0]);
     }).catch(() => {});
   }, [user]);
@@ -96,11 +109,13 @@ const App = () => {
     handleSelectChannel(dm);
   }, [handleSelectChannel]);
 
-  const handleNewMessage = useCallback((channelId) => {
+  const handleNewMessage = useCallback((channelId, meta) => {
     if (channelId !== currentChannel?.id) {
       setUnreadCounts(prev => ({ ...prev, [channelId]: (prev[channelId] || 0) + 1 }));
+      const ch = allChannelsRef.current.find(c => c.id === channelId);
+      if (ch && meta) addToast(ch, meta.senderName, meta.preview);
     }
-  }, [currentChannel?.id]);
+  }, [currentChannel?.id, addToast]);
 
   const handleLogin = (u) => {
     setUser(u);
@@ -111,6 +126,7 @@ const App = () => {
 
   return (
     <div className="app-container">
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} onNavigate={handleSelectChannel} />
       <Sidebar
         currentView={currentView}
         currentChannel={currentChannel}

@@ -296,7 +296,10 @@ const ChatArea = ({ channel, user, onNewMessage }) => {
                 icon: '/favicon.ico',
               });
             }
-            onNewMessage?.(channel.id);
+            onNewMessage?.(channel.id, {
+              senderName: data.message.full_name,
+              preview: (data.message.content || '').slice(0, 60),
+            });
           }
         }
 
