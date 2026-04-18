@@ -72,7 +72,7 @@ const AdminPanel = () => {
   }
 
   return (
-    <div style={{ padding: '2rem', height: '100%', overflowY: 'auto', backgroundColor: '#f8fafc' }}>
+    <div style={{ padding: '2rem', height: '100%', overflowY: 'auto', backgroundColor: 'var(--bg-main)' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Admin Panel</h1>
@@ -101,7 +101,7 @@ const AdminPanel = () => {
       {/* Stats Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
         {statCards.map((stat, i) => (
-          <div key={i} style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+          <div key={i} style={{ backgroundColor: 'var(--bg-chat)', padding: '1.5rem', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <div style={{ width: '40px', height: '40px', backgroundColor: stat.color, borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: stat.iconColor }}>
                 <stat.icon size={20} />
@@ -115,7 +115,7 @@ const AdminPanel = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem' }}>
         {/* User Directory */}
-        <div style={{ backgroundColor: 'white', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
+        <div style={{ backgroundColor: 'var(--bg-chat)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden' }}>
           <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ fontWeight: 700 }}>User Directory</h3>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -125,7 +125,7 @@ const AdminPanel = () => {
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)', backgroundColor: '#f8fafc' }}>
+              <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-sidebar)' }}>
                 <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>User</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Email</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Role</th>
@@ -187,7 +187,7 @@ const AdminPanel = () => {
 
         {/* Activity Log */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div style={{ backgroundColor: 'white', border: '1px solid var(--border)', borderRadius: '16px', padding: '1.5rem' }}>
+          <div style={{ backgroundColor: 'var(--bg-chat)', border: '1px solid var(--border)', borderRadius: '16px', padding: '1.5rem' }}>
             <h3 style={{ fontWeight: 700, marginBottom: '1.25rem' }}>Recent Activity</h3>
             {activities.length === 0 ? (
               <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>No activity yet.</p>

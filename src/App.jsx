@@ -11,6 +11,12 @@ const App = () => {
   const [currentView, setCurrentView] = useState('chat');
   const [currentChannel, setCurrentChannel] = useState(null);
   const [channels, setChannels] = useState([]);
+  const [theme, setTheme] = useState(() => localStorage.getItem('blink_theme') || 'light');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('blink_theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('blink_user');
@@ -51,6 +57,8 @@ const App = () => {
         }}
         onViewChange={setCurrentView}
         user={user}
+        theme={theme}
+        onToggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')}
       />
       <main className="main-content">
         {currentView === 'chat' && currentChannel ? (

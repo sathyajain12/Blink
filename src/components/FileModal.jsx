@@ -56,8 +56,8 @@ const FileModal = ({ isOpen, onClose, onSend }) => {
       <div className="fade-in" style={{ 
           width: '100%', 
           maxWidth: '480px', 
-          backgroundColor: 'white', 
-          borderRadius: '20px', 
+          backgroundColor: 'var(--bg-chat)',
+          borderRadius: '20px',
           padding: '2rem',
           boxShadow: 'var(--shadow-md)'
       }}>

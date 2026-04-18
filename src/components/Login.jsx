@@ -115,7 +115,7 @@ const Login = ({ onLogin }) => {
     <div style={{
       height: '100vh', width: '100vw', display: 'flex',
       flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', backgroundColor: '#f8fafc',
+      justifyContent: 'center', backgroundColor: 'var(--bg-main)',
     }}>
       <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
         <div style={{
@@ -129,7 +129,7 @@ const Login = ({ onLogin }) => {
       </div>
 
       <div style={{
-        width: '100%', maxWidth: '440px', backgroundColor: 'white',
+        width: '100%', maxWidth: '440px', backgroundColor: 'var(--bg-chat)',
         padding: '2.5rem', borderRadius: '20px',
         boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)',
       }}>

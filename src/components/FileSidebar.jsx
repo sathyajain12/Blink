@@ -43,7 +43,7 @@ const FileSidebar = ({ messages, onClose }) => {
   return (
     <div style={{
       width: '300px', borderLeft: '1px solid var(--border)',
-      backgroundColor: 'white', display: 'flex', flexDirection: 'column', height: '100%',
+      backgroundColor: 'var(--bg-chat)', display: 'flex', flexDirection: 'column', height: '100%',
     }}>
       {/* Header */}
       <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -54,7 +54,7 @@ const FileSidebar = ({ messages, onClose }) => {
       </div>
 
       {/* Tabs */}
-      <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '0.25rem', backgroundColor: '#f8fafc' }}>
+      <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '0.25rem', backgroundColor: 'var(--bg-sidebar)' }}>
         {['all', 'images', 'files'].map(t => (
           <button key={t} style={tabStyle(t)} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}

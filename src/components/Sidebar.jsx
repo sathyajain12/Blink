@@ -1,7 +1,7 @@
 import React from 'react';
-import { Hash, MessageSquare, Settings, Search, Plus, LogOut } from 'lucide-react';
+import { Hash, MessageSquare, Settings, Search, Plus, LogOut, Sun, Moon } from 'lucide-react';
 
-const Sidebar = ({ currentView, currentChannel, channels, onSelectChannel, onViewChange, user }) => {
+const Sidebar = ({ currentView, currentChannel, channels, onSelectChannel, onViewChange, user, theme, onToggleTheme }) => {
   const handleLogout = () => {
     localStorage.removeItem('blink_user');
     localStorage.removeItem('blink_token');
@@ -82,6 +82,9 @@ const Sidebar = ({ currentView, currentChannel, channels, onSelectChannel, onVie
           <div style={{ fontSize: '0.875rem', fontWeight: 600 }}>{user.full_name}</div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Online</div>
         </div>
+        <button onClick={onToggleTheme} className="text-muted" title="Toggle theme">
+          {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+        </button>
         <button onClick={handleLogout} className="text-muted" title="Logout">
           <LogOut size={16} />
         </button>

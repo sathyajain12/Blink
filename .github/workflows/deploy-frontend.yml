@@ -1,6 +1,6 @@
 name: Deploy Frontend to Cloudflare Pages
 
-on:
+"on":
   push:
     branches: [main]
 

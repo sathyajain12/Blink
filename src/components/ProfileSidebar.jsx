@@ -14,8 +14,8 @@ const ProfileSidebar = ({ user, onClose }) => {
     <div style={{ 
         width: '320px', 
         borderLeft: '1px solid var(--border)', 
-        backgroundColor: 'white', 
-        display: 'flex', 
+        backgroundColor: 'var(--bg-chat)',
+        display: 'flex',
         flexDirection: 'column',
         height: '100%'
     }}>
