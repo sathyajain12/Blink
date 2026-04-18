@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { MessageSquare, Mail, Lock, Eye, EyeOff, User } from 'lucide-react';
 
 const API = 'https://blinkv2.saisathyajain.workers.dev';
