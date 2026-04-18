@@ -98,6 +98,11 @@ export default {
       return handleMessages(request, env);
     }
 
+    if (url.pathname.startsWith('/api/admin/users/') && request.method === 'DELETE') {
+      const userId = url.pathname.split('/').pop();
+      return handleDeleteUser(userId, env);
+    }
+
     if (url.pathname.startsWith('/api/admin/users')) {
       return handleAdminUsers(request, env);
     }
@@ -302,6 +307,15 @@ async function handleAdmin(_request, env) {
     stats: { totalUsers, totalMessages, activeToday, filesUploaded: 0 },
     activities,
   }));
+}
+
+async function handleDeleteUser(userId, env) {
+  await env.DB.prepare('DELETE FROM activity_logs WHERE user_id = ?').bind(userId).run();
+  await env.DB.prepare('DELETE FROM files WHERE uploader_id = ?').bind(userId).run();
+  await env.DB.prepare('DELETE FROM messages WHERE user_id = ?').bind(userId).run();
+  await env.DB.prepare('DELETE FROM channel_members WHERE user_id = ?').bind(userId).run();
+  await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
+  return corsResponse(JSON.stringify({ success: true }));
 }
 
 async function handleAdminUsers(_request, env) {

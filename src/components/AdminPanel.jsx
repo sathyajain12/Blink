@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Users, Zap, Send, Upload, Search, Filter, Download,
-  TrendingUp, TrendingDown
+  Users, Zap, Send, Upload, Search, Filter, Download, MinusCircle
 } from 'lucide-react';
 
 const API = 'https://blinkv2.saisathyajain.workers.dev';
@@ -24,6 +23,16 @@ const AdminPanel = () => {
   const [activities, setActivities] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const handleDeleteUser = async (userId, userName) => {
+    if (!window.confirm(`Delete user "${userName}"? This cannot be undone.`)) return;
+    const token = localStorage.getItem('blink_token');
+    await fetch(`${API}/api/admin/users/${userId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setUsers(prev => prev.filter(u => u.id !== userId));
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('blink_token');
@@ -122,6 +131,7 @@ const AdminPanel = () => {
                 <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Role</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Last Active</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -156,6 +166,15 @@ const AdminPanel = () => {
                   </td>
                   <td style={{ padding: '1rem', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
                     {u.last_active ? formatTime(u.last_active) : 'Never'}
+                  </td>
+                  <td style={{ padding: '1rem' }}>
+                    <button
+                      onClick={() => handleDeleteUser(u.id, u.full_name)}
+                      title="Delete user"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
+                    >
+                      <MinusCircle size={16} />
+                    </button>
                   </td>
                 </tr>
               ))}
