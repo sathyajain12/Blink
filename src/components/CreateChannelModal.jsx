@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Hash } from 'lucide-react';
 
 const API = 'https://blinkv2.saisathyajain.workers.dev';
@@ -28,8 +29,8 @@ const CreateChannelModal = ({ onClose, onCreated }) => {
     finally { setLoading(false); }
   };
 
-  return (
-    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
       <div className="fade-in" style={{ width: '100%', maxWidth: '440px', backgroundColor: 'var(--bg-chat)', borderRadius: '20px', padding: '2rem', boxShadow: 'var(--shadow-md)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Create a channel</h2>
@@ -82,7 +83,8 @@ const CreateChannelModal = ({ onClose, onCreated }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Hash, MessageSquare, Settings, Search, Plus, LogOut, Sun, Moon, MessageCircle, X, Check, User } from 'lucide-react';
 import CreateChannelModal from './CreateChannelModal';
 
@@ -204,8 +205,8 @@ const Sidebar = ({ currentView, currentChannel, channels, dms = [], onSelectChan
         />
       )}
 
-      {showNewDM && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      {showNewDM && createPortal(
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div className="fade-in" style={{ width: '100%', maxWidth: '400px', backgroundColor: 'var(--bg-chat)', borderRadius: '20px', padding: '1.5rem', boxShadow: 'var(--shadow-md)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ fontWeight: 700 }}>New Direct Message</h3>
@@ -252,11 +253,12 @@ const Sidebar = ({ currentView, currentChannel, channels, dms = [], onSelectChan
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {showProfileEdit && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      {showProfileEdit && createPortal(
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div className="fade-in" style={{ width: '100%', maxWidth: '400px', backgroundColor: 'var(--bg-chat)', borderRadius: '20px', padding: '2rem', boxShadow: 'var(--shadow-md)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ fontWeight: 700 }}>Edit Profile</h3>
@@ -283,7 +285,8 @@ const Sidebar = ({ currentView, currentChannel, channels, dms = [], onSelectChan
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
